@@ -1,0 +1,27 @@
+name: vnpt_onvif_example
+description: Demonstrates how to use the vnpt_onvif package.
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.1.5 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  vnpt_onvif:
+    path: ../
+  cupertino_icons: ^1.0.2
+  xml: ^6.3.0
+  http: ^1.1.0
+  crypto: ^3.0.3
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true
