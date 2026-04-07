@@ -8,3 +8,7 @@
 * Supported Media Service (GetProfiles, GetStreamUri).
 * Automatic Time Synchronization (Time Sync).
 * Namespace-Aware XML Parsing.
+
+## 1.0.1
+
+* Update coding convention 
