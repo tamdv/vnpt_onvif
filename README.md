@@ -2,7 +2,7 @@
 
 Thư viện Flutter chuyên dụng để quản lý thiết bị ONVIF, được chuyển thể từ **ODM (ONVIF Device Manager)**. Hỗ trợ tìm kiếm thiết bị, xác thực bảo mật và lấy luồng video RTSP một cách chuyên nghiệp.
 
-## 📦 Cài đặt (Installation)
+## Cài đặt (Installation)
 
 Thêm package vào `pubspec.yaml` của bạn bằng cách trỏ đường dẫn (Path) hoặc thông qua Git:
 
@@ -14,7 +14,7 @@ dependencies:
 
 Sau đó chạy: `flutter pub get`
 
-## 🛠 Hướng dẫn sử dụng (Usage Guide)
+## Hướng dẫn sử dụng (Usage Guide)
 
 Chỉ cần import một dòng duy nhất để sử dụng toàn bộ tính năng:
 ```dart
@@ -52,7 +52,7 @@ final profiles = await mediaService.getProfiles();
 final streamUri = await mediaService.getStreamUri(profiles.first.token);
 ```
 
-## 🏗 Kiến trúc & Tính năng nổi bật
+## Kiến trúc & Tính năng nổi bật
 
 *   **⚡ Native Performance**: Không sử dụng thư viện ONVIF bên thứ ba, tối ưu hóa SOAP/XML thủ công.
 *   **⏰ Time Sync**: Tự động đồng bộ thời gian với Camera để xử lý lỗi xác thực `Created` lệch múi giờ.
@@ -65,4 +65,4 @@ final streamUri = await mediaService.getStreamUri(profiles.first.token);
 *   **iOS**: Cần `NSLocalNetworkUsageDescription` và đăng ký `Multicast Entitlement` với Apple.
 
 ## 🚀 Đóng góp & Phát triển
-Dự án được duy trì bởi đội ngũ **VNPT IT**. Mọi yêu cầu hỗ trợ vui lòng liên hệ qua hệ thống Git nội bộ.
+Dự án được duy trì bởi đội ngũ **VNPT Technology**. Mọi yêu cầu hỗ trợ vui lòng liên hệ qua hệ thống Git nội bộ.

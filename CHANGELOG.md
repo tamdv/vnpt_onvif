@@ -12,3 +12,7 @@
 ## 1.0.1
 
 * Update coding convention 
+
+## 1.0.2
+
+* Update README.md

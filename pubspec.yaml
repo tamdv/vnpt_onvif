@@ -1,6 +1,6 @@
 name: vnpt_onvif
 description: A professional, native ONVIF manager library for Flutter, ported from ODM to support device discovery, SOAP/WS-Security, and RTSP stream acquisition.
-version: 1.0.1
+version: 1.0.2
 homepage: https://github.com/tamdv/vnpt_onvif
 
 environment:
