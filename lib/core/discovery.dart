@@ -26,81 +26,104 @@ class OnvifDiscovery {
   ///
   /// The [timeout] defines how long to wait for responses (default: 5 seconds).
   Future<void> probe({Duration timeout = const Duration(seconds: 5)}) async {
-    // Tìm địa chỉ IP Wifi hiện tại của thiết bị
-    InternetAddress? wifiAddress;
+    // Tìm tất địa chỉ IP Wifi hiện tại của thiết bị
     try {
       final interfaces = await NetworkInterface.list(
         includeLinkLocal: false,
         type: InternetAddressType.IPv4,
+        includeLoopback: false,
       );
-      for (var interface in interfaces) {
-        for (var addr in interface.addresses) {
-          if (!addr.isLoopback &&
-              (addr.address.startsWith('192.168.') ||
-                  addr.address.startsWith('10.') ||
-                  addr.address.startsWith('172.'))) {
-            wifiAddress = addr;
-            break;
+
+      List<InternetAddress> allAddresses = [];
+      allAddresses.addAll(
+        interfaces.expand((interface) => interface.addresses),
+      );
+      if (allAddresses.isEmpty) {
+        Logger.instance.log(
+          'Không tìm thấy địa chỉ IP nào trên thiết bị',
+          name: 'Discovery',
+        );
+        allAddresses.add(InternetAddress.anyIPv4);
+      }
+      // Sắp xếp địa chỉ IP ưu tiên đưa 192.x.x.x lên đầu
+      allAddresses.sort((a, b) {
+        if (a.address.startsWith('192.')) return -1;
+        if (b.address.startsWith('192.')) return 1;
+        return 0;
+      });
+      Logger.instance.log(
+        'List IP Addresses: ${allAddresses.toList()}',
+        name: 'Discovery',
+      );
+      for (var addr in allAddresses) {
+        Logger.instance.log(
+          'Trying IP Address: ${addr.address}',
+          name: 'Discovery',
+        );
+
+        Logger.instance.log(
+          'Binding socket tại ${addr.address}',
+          name: 'Discovery',
+        );
+        final RawDatagramSocket socket = await RawDatagramSocket.bind(addr, 0);
+        socket.readEventsEnabled = true;
+        socket.broadcastEnabled = true;
+        socket.multicastLoopback = true;
+
+        // Join Multicast Group
+        try {
+          socket.joinMulticast(InternetAddress(multicastAddress));
+        } catch (e) {
+          // Ignore if fail
+        }
+
+        final List<String> probeMessages = [
+          _buildProbeXml(null),
+          _buildProbeXml('dn:NetworkVideoTransmitter'),
+          _buildProbeXml('tds:Device'),
+        ];
+
+        for (var msg in probeMessages) {
+          final List<int> data = utf8.encode(msg);
+          socket.send(data, InternetAddress(multicastAddress), multicastPort);
+          Logger.instance.log('Đã gửi Probe Multicast', name: 'Discovery');
+          await Future.delayed(const Duration(milliseconds: 200));
+        }
+
+        final List<String> discoveredUuids = [];
+        final timer = Timer(timeout, () => socket.close());
+
+        socket.listen((RawSocketEvent event) {
+          if (event == RawSocketEvent.read) {
+            final Datagram? dg = socket.receive();
+            if (dg != null) {
+              final String response = utf8.decode(dg.data);
+              Logger.instance.log(
+                'Nhận được phản hồi từ ${dg.address.address}',
+                name: 'Discovery',
+              );
+              _parseProbeResponse(response, discoveredUuids);
+            }
           }
-        }
-        if (wifiAddress != null) break;
+        });
+
+        await Future.delayed(timeout + const Duration(seconds: 1));
+        if (timer.isActive) timer.cancel();
+        socket.close();
       }
     } catch (e) {
-      Logger.instance.log('Lỗi khi lấy danh sách interface: $e', name: 'Discovery');
+      Logger.instance.log(
+        'Lỗi khi lấy danh sách interface: $e',
+        name: 'Discovery',
+      );
     }
-
-    final bindAddr = wifiAddress ?? InternetAddress.anyIPv4;
-    Logger.instance.log('Binding socket tại ${bindAddr.address}', name: 'Discovery');
-
-    final RawDatagramSocket socket = await RawDatagramSocket.bind(bindAddr, 0);
-    socket.readEventsEnabled = true;
-    socket.broadcastEnabled = true;
-    socket.multicastLoopback = true;
-
-    // Join Multicast Group
-    try {
-      socket.joinMulticast(InternetAddress(multicastAddress));
-    } catch (e) {
-      // Ignore if fail
-    }
-
-    final List<String> probeMessages = [
-      _buildProbeXml(null),
-      _buildProbeXml('dn:NetworkVideoTransmitter'),
-      _buildProbeXml('tds:Device'),
-    ];
-
-    for (var msg in probeMessages) {
-      final List<int> data = utf8.encode(msg);
-      socket.send(data, InternetAddress(multicastAddress), multicastPort);
-      Logger.instance.log('Đã gửi Probe Multicast', name: 'Discovery');
-      await Future.delayed(const Duration(milliseconds: 200));
-    }
-
-    final List<String> discoveredUuids = [];
-    final timer = Timer(timeout, () => socket.close());
-
-    socket.listen((RawSocketEvent event) {
-      if (event == RawSocketEvent.read) {
-        final Datagram? dg = socket.receive();
-        if (dg != null) {
-          final String response = utf8.decode(dg.data);
-          Logger.instance.log('Nhận được phản hồi từ ${dg.address.address}',
-              name: 'Discovery');
-          _parseProbeResponse(response, discoveredUuids);
-        }
-      }
-    });
-
-    await Future.delayed(timeout + const Duration(seconds: 1));
-    if (timer.isActive) timer.cancel();
-    socket.close();
   }
 
   String _buildProbeXml(String? type) {
     final String messageId = 'uuid:${_generateUuid()}';
-    final String typeElement =
-        type != null ? '<wsd:Types>$type</wsd:Types>' : '<wsd:Types/>';
+    final String typeElement = type != null
+        ? '<wsd:Types>$type</wsd:Types>'
+        : '<wsd:Types/>';
 
     return '''
 <?xml version="1.0" encoding="utf-8"?>
@@ -140,11 +163,14 @@ class OnvifDiscovery {
       const wsdNs = 'http://schemas.xmlsoap.org/ws/2005/04/discovery';
       const wsaNs = 'http://schemas.xmlsoap.org/ws/2004/08/addressing';
 
-      final probeMatches =
-          document.findAllElements('ProbeMatch', namespace: wsdNs);
+      final probeMatches = document.findAllElements(
+        'ProbeMatch',
+        namespace: wsdNs,
+      );
       for (var match in probeMatches) {
-        final endpointRef =
-            match.findAllElements('EndpointReference', namespace: wsaNs).first;
+        final endpointRef = match
+            .findAllElements('EndpointReference', namespace: wsaNs)
+            .first;
         final address = endpointRef
             .findAllElements('Address', namespace: wsaNs)
             .first
@@ -158,8 +184,10 @@ class OnvifDiscovery {
             .first
             .innerText
             .split(' ');
-        final types =
-            match.findAllElements('Types', namespace: wsdNs).first.innerText;
+        final types = match
+            .findAllElements('Types', namespace: wsdNs)
+            .first
+            .innerText;
         final scopesArr = match
             .findAllElements('Scopes', namespace: wsdNs)
             .first
@@ -169,8 +197,9 @@ class OnvifDiscovery {
         String name = 'Unknown Device';
         for (var scope in scopesArr) {
           if (scope.contains('onvif://www.onvif.org/name/')) {
-            name =
-                Uri.decodeComponent(scope.split('/').last).replaceAll('_', ' ');
+            name = Uri.decodeComponent(
+              scope.split('/').last,
+            ).replaceAll('_', ' ');
             break;
           }
         }
@@ -183,7 +212,10 @@ class OnvifDiscovery {
           name: name,
         );
 
-        Logger.instance.log('[FOUND] Thiết bị: ${device.name}', name: 'Discovery');
+        Logger.instance.log(
+          '[FOUND] Thiết bị: ${device.name}',
+          name: 'Discovery',
+        );
         Logger.instance.log('[UUID] ${device.uuid}', name: 'Discovery');
         Logger.instance.log('[XAddrs] ${device.xAddrs}', name: 'Discovery');
         Logger.instance.log('[Types] ${device.types}', name: 'Discovery');
@@ -199,8 +231,10 @@ class OnvifDiscovery {
   String _generateUuid() {
     final random = Random();
     String generateHex(int length) {
-      return List.generate(length, (i) => random.nextInt(16).toRadixString(16))
-          .join();
+      return List.generate(
+        length,
+        (i) => random.nextInt(16).toRadixString(16),
+      ).join();
     }
 
     return '${generateHex(8)}-${generateHex(4)}-4${generateHex(3)}-${(8 + random.nextInt(4)).toRadixString(16)}${generateHex(3)}-${generateHex(12)}';
@@ -208,8 +242,12 @@ class OnvifDiscovery {
 
   void _printLongString(String text) {
     final RegExp pattern = RegExp('.{1,800}'); // Clipped at 800 characters
-    pattern.allMatches(text).forEach(
-        (match) => Logger.instance.log(match.group(0) ?? '', name: 'Discovery'));
+    pattern
+        .allMatches(text)
+        .forEach(
+          (match) =>
+              Logger.instance.log(match.group(0) ?? '', name: 'Discovery'),
+        );
   }
 
   void dispose() => _deviceController.close();
