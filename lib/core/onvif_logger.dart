@@ -62,11 +62,11 @@ typedef LoggerFunction = void Function(String message, {String? name});
 ///   print('[$timestamp] [$name] $message');
 /// });
 /// ```
-class Logger {
-  static final Logger _instance = Logger._private();
+class OnvifLogger {
+  static final OnvifLogger _instance = OnvifLogger._private();
   late LoggerFunction _logFunction;
 
-  Logger._private() {
+  OnvifLogger._private() {
     // Default: use Dart's developer.log
     _logFunction = (String message, {String? name}) {
       developer.log(message, name: name ?? 'vnpt_onvif');
@@ -74,7 +74,7 @@ class Logger {
   }
 
   /// Gets the singleton instance of the logger.
-  static Logger get instance => _instance;
+  static OnvifLogger get instance => _instance;
 
   /// Initializes the logger with a custom logging function.
   ///
