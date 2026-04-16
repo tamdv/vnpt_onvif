@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:math';
 import 'package:xml/xml.dart';
 import '../models/onvif_device.dart';
+import 'logger.dart';
 
 /// A class to handle ONVIF WS-Discovery using UDP Multicast.
 ///
@@ -46,11 +46,11 @@ class OnvifDiscovery {
         if (wifiAddress != null) break;
       }
     } catch (e) {
-      developer.log('Lỗi khi lấy danh sách interface: $e', name: 'Discovery');
+      Logger.instance.log('Lỗi khi lấy danh sách interface: $e', name: 'Discovery');
     }
 
     final bindAddr = wifiAddress ?? InternetAddress.anyIPv4;
-    developer.log('Binding socket tại ${bindAddr.address}', name: 'Discovery');
+    Logger.instance.log('Binding socket tại ${bindAddr.address}', name: 'Discovery');
 
     final RawDatagramSocket socket = await RawDatagramSocket.bind(bindAddr, 0);
     socket.readEventsEnabled = true;
@@ -73,7 +73,7 @@ class OnvifDiscovery {
     for (var msg in probeMessages) {
       final List<int> data = utf8.encode(msg);
       socket.send(data, InternetAddress(multicastAddress), multicastPort);
-      developer.log('Đã gửi Probe Multicast', name: 'Discovery');
+      Logger.instance.log('Đã gửi Probe Multicast', name: 'Discovery');
       await Future.delayed(const Duration(milliseconds: 200));
     }
 
@@ -85,7 +85,7 @@ class OnvifDiscovery {
         final Datagram? dg = socket.receive();
         if (dg != null) {
           final String response = utf8.decode(dg.data);
-          developer.log('Nhận được phản hồi từ ${dg.address.address}',
+          Logger.instance.log('Nhận được phản hồi từ ${dg.address.address}',
               name: 'Discovery');
           _parseProbeResponse(response, discoveredUuids);
         }
@@ -132,9 +132,9 @@ class OnvifDiscovery {
         // Nếu không parse được thì dùng bản thô
       }
 
-      developer.log('--- NHẬN BẢN TIN DISCOVERY ---', name: 'Discovery');
+      Logger.instance.log('--- NHẬN BẢN TIN DISCOVERY ---', name: 'Discovery');
       _printLongString(prettyXml);
-      developer.log('-----------------------------', name: 'Discovery');
+      Logger.instance.log('-----------------------------', name: 'Discovery');
 
       final document = XmlDocument.parse(xmlResponse);
       const wsdNs = 'http://schemas.xmlsoap.org/ws/2005/04/discovery';
@@ -183,16 +183,16 @@ class OnvifDiscovery {
           name: name,
         );
 
-        developer.log('[FOUND] Thiết bị: ${device.name}', name: 'Discovery');
-        developer.log('[UUID] ${device.uuid}', name: 'Discovery');
-        developer.log('[XAddrs] ${device.xAddrs}', name: 'Discovery');
-        developer.log('[Types] ${device.types}', name: 'Discovery');
-        developer.log('[Scopes] ${device.scopes}', name: 'Discovery');
+        Logger.instance.log('[FOUND] Thiết bị: ${device.name}', name: 'Discovery');
+        Logger.instance.log('[UUID] ${device.uuid}', name: 'Discovery');
+        Logger.instance.log('[XAddrs] ${device.xAddrs}', name: 'Discovery');
+        Logger.instance.log('[Types] ${device.types}', name: 'Discovery');
+        Logger.instance.log('[Scopes] ${device.scopes}', name: 'Discovery');
 
         _deviceController.add(device);
       }
     } catch (e) {
-      developer.log('Lỗi khi phân tích bản tin: $e', name: 'Discovery');
+      Logger.instance.log('Lỗi khi phân tích bản tin: $e', name: 'Discovery');
     }
   }
 
@@ -209,7 +209,7 @@ class OnvifDiscovery {
   void _printLongString(String text) {
     final RegExp pattern = RegExp('.{1,800}'); // Clipped at 800 characters
     pattern.allMatches(text).forEach(
-        (match) => developer.log(match.group(0) ?? '', name: 'Discovery'));
+        (match) => Logger.instance.log(match.group(0) ?? '', name: 'Discovery'));
   }
 
   void dispose() => _deviceController.close();

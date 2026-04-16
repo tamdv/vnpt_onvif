@@ -5,6 +5,7 @@
 library vnpt_onvif;
 
 export 'core/discovery.dart';
+export 'core/logger.dart';
 export 'core/onvif_client.dart';
 export 'models/onvif_device.dart';
 export 'services/device_service.dart';
