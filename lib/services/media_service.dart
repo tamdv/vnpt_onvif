@@ -1,4 +1,5 @@
 import 'package:xml/xml.dart';
+import '../core/onvif_logger.dart';
 import 'onvif_base_service.dart';
 
 class OnvifProfile {
@@ -10,6 +11,8 @@ class OnvifProfile {
 
 /// Service to handle Media (trt) operations like getting profiles and stream URIs.
 class MediaService extends OnvifBaseService {
+  static const _tag = 'MediaService';
+
   /// Creates a new [MediaService] using an [OnvifClient].
   MediaService(OnvifClient client) : super(client);
 
@@ -26,12 +29,42 @@ class MediaService extends OnvifBaseService {
 
     final profiles = document.findAllElements('Profiles', namespace: trtNs);
 
-    return profiles.map((p) {
+    final result = profiles.map((p) {
       return OnvifProfile(
         token: p.getAttribute('token') ?? '',
         name: p.findElements('Name', namespace: ttNs).first.innerText,
       );
     }).toList();
+
+    OnvifLogger.instance.log(
+      'GetProfiles count=${result.length} tokens=${result.map((p) => p.token).join(',')}',
+      name: _tag,
+    );
+    return result;
+  }
+
+  Future<List<String>> getVideoSources() async {
+    const String body =
+        '<trt:GetVideoSources xmlns:trt="http://www.onvif.org/ver10/media/wsdl"/>';
+    final response = await client.soapRequest(
+      body,
+      action: 'http://www.onvif.org/ver10/media/wsdl/GetVideoSources',
+    );
+
+    final document = XmlDocument.parse(response);
+    const trtNs = 'http://www.onvif.org/ver10/media/wsdl';
+
+    final result = document
+        .findAllElements('VideoSources', namespace: trtNs)
+        .map((e) => e.getAttribute('token') ?? '')
+        .where((token) => token.isNotEmpty)
+        .toList(growable: false);
+
+    OnvifLogger.instance.log(
+      'GetVideoSources count=${result.length} tokens=${result.join(',')}',
+      name: _tag,
+    );
+    return result;
   }
 
   Future<String> getStreamUri(String profileToken) async {
@@ -57,6 +90,12 @@ class MediaService extends OnvifBaseService {
 
     final mediaUri =
         document.findAllElements('MediaUri', namespace: trtNs).first;
-    return mediaUri.findElements('Uri', namespace: ttNs).first.innerText;
+    final uri = mediaUri.findElements('Uri', namespace: ttNs).first.innerText;
+
+    OnvifLogger.instance.log(
+      'GetStreamUri token=$profileToken uri=$uri',
+      name: _tag,
+    );
+    return uri;
   }
 }
